@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>วิทยาลัยเทคนิคสมุทรสงคราม — แผนที่</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== Header บนสุด (โชว์ทุกขนาดจอ) ===== -->
+  <header class="app-header">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 48 48">
+        <path d="M6 24c6-10 20-14 30-8 4 2.5 6 6 6 8s-2 5.5-6 8c-10 6-24 2-30-8z" fill="#3FA796"/>
+        <path d="M42 24l6-7v14z" fill="#3FA796"/>
+        <circle cx="14" cy="21" r="1.8" fill="#0B2A3D"/>
+      </svg>
+      <div class="brand-text">
+        วิทยาลัยเทคนิคสมุทรสงคราม
+        <small>แผนที่ภายในวิทยาลัย · Mae Klong Campus</small>
+      </div>
+    </div>
+
+    <!-- ช่องค้นหา: โชว์กลาง header บนจอใหญ่, ซ่อนบนจอเล็ก (มือถือใช้ปุ่มค้นหาที่ bottom nav แทน) -->
+    <div class="header-search">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#8FA9B3" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="searchInput" placeholder="ค้นหาอาคาร แผนก หรือจุดบริการ...">
+    </div>
+
+    <button class="icon-btn" title="บัญชีผู้ใช้">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#D7E4E8" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+    </button>
+  </header>
+
+  <!-- ===== Body: sidebar (จอใหญ่) + แผนที่ + panel ขวา (จอใหญ่) ===== -->
+  <div class="app-body">
+
+    <!-- Sidebar ซ้าย: โชว์เฉพาะจอใหญ่ (desktop/tablet) -->
+    <aside class="sidebar">
+      <div class="sidebar-section-title">โซนทั้งหมด</div>
+      <div class="zone-chips" id="zoneChips"><!-- เติมด้วย JS จาก ZONES ใน data.js --></div>
+
+      <div class="sidebar-section-title">รายการอาคาร/แผนก</div>
+      <ul class="building-list" id="buildingList"><!-- เติมด้วย JS จาก BUILDINGS ใน data.js --></ul>
+    </aside>
+
+    <!-- แผนที่ตรงกลาง: เต็มพื้นที่เสมอไม่ว่าจอขนาดไหน -->
+    <main class="map-wrap">
+      <div id="map"></div>
+
+      <div class="key-warning" id="keyWarning">
+        <h3>ยังไม่ได้ใส่ Google Maps API Key</h3>
+        <p>เปิดไฟล์ <code>config.js</code> แล้วแทนที่ <code>YOUR_API_KEY_HERE</code> ด้วย API key ของคุณเอง</p>
+      </div>
+
+      <!-- การ์ดข้อมูลอาคาร: บนมือถือลอยทับด้านล่างแผนที่ / บนจอใหญ่ไม่โชว์ตรงนี้ (ใช้ panel ขวาแทน ดูด้านล่าง) -->
+      <div class="info-pop mobile-only" id="infoPop">
+        <div class="meta">
+          <div class="name" id="popName">—</div>
+          <div class="sub" id="popSub">—</div>
+        </div>
+        <button class="go-btn" id="popGo">นำทาง</button>
+      </div>
+
+      <!-- แผงนำทาง turn-by-turn บนมือถือ: ลอยทับด้านล่างแผนที่ -->
+      <div class="directions-panel mobile-only" id="directionsPanelMobile">
+        <div class="directions-head">
+          <div class="titles">
+            <div class="label">เส้นทางไปยัง</div>
+            <div class="dest-name" id="directionsDestNameMobile">—</div>
+            <div class="summary" id="directionsSummaryMobile">—</div>
+          </div>
+          <button class="close-btn" id="closeDirectionsMobile">✕</button>
+        </div>
+        <ol class="steps-list" id="directionsStepsMobile"></ol>
+      </div>
+    </main>
+
+    <!-- Panel ขวา: โชว์เฉพาะจอใหญ่ ใช้แสดงข้อมูลอาคาร/เส้นทางนำทางแทนการลอยทับแผนที่ -->
+    <aside class="detail-panel desktop-only" id="detailPanel">
+      <div class="detail-empty" id="detailEmpty">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="#3FA796" stroke-width="1.6"><path d="M12 21s-7-6-9.5-10A5.5 5.5 0 0112 5a5.5 5.5 0 019.5 6C19 15 12 21 12 21z"/></svg>
+        <p>คลิกหมุดบนแผนที่ หรือเลือกอาคารจากรายการซ้ายมือ<br>เพื่อดูรายละเอียดและนำทาง</p>
+      </div>
+
+      <!-- การ์ดข้อมูลอาคารฝั่ง desktop -->
+      <div class="detail-info" id="detailInfo">
+        <div class="detail-info-name" id="popNameDesktop">—</div>
+        <div class="detail-info-sub" id="popSubDesktop">—</div>
+        <button class="go-btn full-width" id="popGoDesktop">นำทาง</button>
+      </div>
+
+      <!-- แผงนำทางฝั่ง desktop -->
+      <div class="directions-panel desktop-only" id="directionsPanelDesktop">
+        <div class="directions-head">
+          <div class="titles">
+            <div class="label">เส้นทางไปยัง</div>
+            <div class="dest-name" id="directionsDestNameDesktop">—</div>
+            <div class="summary" id="directionsSummaryDesktop">—</div>
+          </div>
+          <button class="close-btn" id="closeDirectionsDesktop">✕</button>
+        </div>
+        <ol class="steps-list" id="directionsStepsDesktop"></ol>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== Bottom nav: โชว์เฉพาะจอเล็ก (มือถือ) ===== -->
+  <nav class="bottom-nav mobile-only">
+    <div class="nav-item active"><svg viewBox="0 0 24 24" fill="none" stroke="#E8935B" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>หน้าหลัก</div>
+    <div class="nav-item" id="mobileSearchBtn"><svg viewBox="0 0 24 24" fill="none" stroke="#8FA9B3" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>ค้นหา</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="#8FA9B3" stroke-width="2"><path d="M12 21s-7-6-9.5-10A5.5 5.5 0 0112 5a5.5 5.5 0 019.5 6C19 15 12 21 12 21z"/></svg>จุดบริการ</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="#8FA9B3" stroke-width="2"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>การเดินทาง</div>
+    <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="#8FA9B3" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>ตั้งค่า</div>
+  </nav>
+
+  <!-- ช่องค้นหาแบบเต็มจอสำหรับมือถือ (เปิดจากปุ่ม "ค้นหา" ใน bottom nav) -->
+  <div class="mobile-search-overlay" id="mobileSearchOverlay">
+    <div class="mobile-search-bar">
+      <input type="text" id="mobileSearchInput" placeholder="ค้นหาอาคาร แผนก หรือจุดบริการ...">
+      <button id="closeMobileSearch">ปิด</button>
+    </div>
+    <ul class="building-list" id="mobileBuildingList"></ul>
+  </div>
+
+</div>
+
+<!-- ===== ลำดับการโหลดไฟล์ ===== -->
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="ui.js"></script>
+<script src="map.js"></script>
+<script>
+  document.write(
+    '<script async src="https://maps.googleapis.com/maps/api/js?key=' +
+    CONFIG.GOOGLE_MAPS_API_KEY +
+    '&callback=initMap"><' + '/script>'
+  );
+</script>
+
+</body>
+</html>
