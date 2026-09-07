@@ -1,6 +1,7 @@
 import { MapView } from "@/components/Map";
+import { CampusAIWidget } from "@/components/CampusAIWidget";
 import { trpc } from "@/lib/trpc";
-import { CAMPUS_BUILDINGS, CAMPUS_NEWS, CAMPUS_OVERVIEW } from "@shared/campus";
+import { CAMPUS_BUILDINGS, CAMPUS_NEWS, CAMPUS_OVERVIEW, DEFAULT_DEPARTMENTS, DEFAULT_GALLERY } from "@shared/campus";
 import type { CampusBuilding } from "@shared/campus";
 import {
   ArrowUpRight,
@@ -24,6 +25,13 @@ const categoryFilters = ["ทั้งหมด", "วิชาการ", "ป�
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function getBuildingLocation(building: CampusBuilding) {
+  return {
+    lat: building.latitude ?? CAMPUS_OVERVIEW.mapCenter.lat + (building.y - 50) * 0.00035,
+    lng: building.longitude ?? CAMPUS_OVERVIEW.mapCenter.lng + (building.x - 50) * 0.00045,
+  };
 }
 
 function LogoMark() {
@@ -59,6 +67,8 @@ function FloorDetails({ building }: { building: CampusBuilding }) {
   const [activeFloor, setActiveFloor] = useState(1);
   useEffect(() => setActiveFloor(1), [building.id]);
   const floor = building.floorsDetail.find((item) => item.level === activeFloor) ?? building.floorsDetail[0];
+  const departments = (building.departments ?? DEFAULT_DEPARTMENTS).filter((department) => department.floor === activeFloor);
+  const gallery = building.gallery ?? DEFAULT_GALLERY;
 
   return (
     <div className="mt-5 border-t border-[var(--border)] pt-5">
@@ -86,6 +96,8 @@ function FloorDetails({ building }: { building: CampusBuilding }) {
           </div>
         ))}
       </div>
+      {departments.length > 0 && <div className="mt-5 rounded-2xl bg-[var(--background)] p-4"><p className="mb-3 text-xs font-extrabold text-[var(--ink)]">สาขาวิชาที่อยู่ชั้นนี้</p><div className="space-y-3">{departments.map((department) => <div key={department.id} className="rounded-xl border border-[var(--border)] bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-extrabold text-[var(--ink)]">{department.name}</p><p className="mt-1 text-[10px] font-bold text-[var(--muted-foreground)]">รหัสสาขา {department.code}</p></div><span className="rounded-full px-2 py-1 text-[10px] font-extrabold" style={{ color: department.accent, backgroundColor: `${department.accent}18` }}>{department.code}</span></div><p className="mt-2 text-xs leading-6 text-[var(--muted-foreground)]">{department.description}</p><div className="mt-2 flex flex-wrap gap-1.5">{department.skills.map((skill) => <span key={skill} className="rounded-full bg-[var(--muted)] px-2 py-1 text-[10px] font-bold text-[var(--muted-foreground)]">{skill}</span>)}</div><p className="mt-3 text-[10px] font-bold text-[var(--muted-foreground)]">เส้นทางอาชีพ: {department.careers.join(" · ")}</p></div>)}</div></div>}
+      {gallery.length > 0 && <div className="mt-5"><div className="mb-3 flex items-center justify-between"><p className="text-xs font-extrabold text-[var(--ink)]">Gallery บรรยากาศการเรียนรู้</p><span className="text-[10px] font-bold text-[var(--muted-foreground)]">{gallery.length} รูป</span></div><div className="grid grid-cols-3 gap-2">{gallery.slice(0, 3).map((image) => <figure key={image.id} className="group overflow-hidden rounded-xl bg-[var(--muted)]"><img src={image.url} alt={image.alt} className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-105" /><figcaption className="truncate px-2 py-2 text-[10px] font-bold text-[var(--muted-foreground)]">{image.caption}</figcaption></figure>)}</div></div>}
     </div>
   );
 }
@@ -96,7 +108,9 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState("main");
   const [query, setQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [routeStatus, setRouteStatus] = useState("");
   const mapRef = useRef<google.maps.Map | null>(null);
+  const routeRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
   const { data: buildingsData } = trpc.campus.buildings.useQuery(undefined, { staleTime: 1000 * 60 * 10 });
   const { data: newsData } = trpc.campus.news.useQuery(undefined, { staleTime: 1000 * 60 * 10 });
   const buildings = buildingsData?.length ? buildingsData : CAMPUS_BUILDINGS;
@@ -137,6 +151,34 @@ export default function Home() {
     mapRef.current?.setZoom(17);
   };
 
+  const navigateToBuilding = (building: CampusBuilding) => {
+    const destination = getBuildingLocation(building);
+    const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lng}&travelmode=walking`;
+    if (!mapRef.current || !window.google?.maps) {
+      window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      setRouteStatus("เปิดเส้นทางใน Google Maps แล้ว");
+      return;
+    }
+    const drawRoute = (origin: google.maps.LatLngLiteral | string) => {
+      const directionsService = new google.maps.DirectionsService();
+      routeRendererRef.current?.setMap(null);
+      routeRendererRef.current = new google.maps.DirectionsRenderer({ map: mapRef.current, suppressMarkers: false, preserveViewport: false, polylineOptions: { strokeColor: "#eb8b67", strokeWeight: 5 } });
+      directionsService.route({ origin, destination, travelMode: google.maps.TravelMode.WALKING }, (result, status) => {
+        if (status === "OK" && result) {
+          routeRendererRef.current?.setDirections(result);
+          setRouteStatus(`แสดงเส้นทางเดินไปยัง ${building.shortName}`);
+        } else {
+          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+          setRouteStatus("เปิดเส้นทางใน Google Maps แล้ว");
+        }
+      });
+    };
+    if (navigator.geolocation) {
+      setRouteStatus("กำลังค้นหาตำแหน่งของคุณ...");
+      navigator.geolocation.getCurrentPosition((position) => drawRoute({ lat: position.coords.latitude, lng: position.coords.longitude }), () => drawRoute(CAMPUS_OVERVIEW.mapCenter), { enableHighAccuracy: true, timeout: 5000 });
+    } else drawRoute(CAMPUS_OVERVIEW.mapCenter);
+  };
+
   return (
     <div className="app-shell bg-[var(--background)]">
       <header className="nav-glass sticky top-0 z-50">
@@ -144,7 +186,7 @@ export default function Home() {
           <button type="button" onClick={() => scrollToId("top")} className="flex items-center gap-3 text-left">
             <LogoMark />
             <div>
-              <p className="font-display text-[15px] font-bold leading-tight text-[var(--ink)]">Campus Guide</p>
+              <p className="font-display text-[15px] font-bold leading-tight text-[var(--ink)]">PLato Guide</p>
               <p className="mt-0.5 text-[11px] font-medium text-[var(--muted-foreground)]">วิทยาลัยเทคนิคสมุทรสงคราม</p>
             </div>
           </button>
@@ -249,7 +291,7 @@ export default function Home() {
             <div className="bg-[#deece7] p-3 sm:p-5"><div className="relative h-[620px] overflow-hidden rounded-[20px] bg-[#dcece4]"><div className="absolute inset-0 opacity-76"><MapView initialCenter={CAMPUS_OVERVIEW.mapCenter} initialZoom={16} onMapReady={handleMapReady} className="h-full w-full" /></div><div className="map-road left-[-12%] top-[47%] w-[125%] rotate-[17deg]" /><div className="map-road left-[43%] top-[-18%] h-[135%] w-[22px] rotate-[31deg]" /><div className="map-road left-[0%] top-[21%] w-[100%] rotate-[-21deg] opacity-75" /><div className="map-road left-[18%] top-[78%] w-[85%] rotate-[7deg] opacity-70" /><div className="map-building left-[15%] top-[28%] h-[21%] w-[21%]" /><div className="map-building left-[45%] top-[32%] h-[17%] w-[21%]" /><div className="map-building left-[72%] top-[18%] h-[21%] w-[18%]" /><div className="map-building left-[67%] top-[57%] h-[19%] w-[24%]" /><div className="map-building left-[28%] top-[67%] h-[17%] w-[23%]" /><div className="map-building left-[8%] top-[62%] h-[19%] w-[17%]" />{buildings.map((building) => <MapPinMarker key={building.id} building={building} selected={building.id === selectedId} onClick={() => focusBuilding(building)} />)}<div className="absolute left-4 top-4 z-20 rounded-full bg-[var(--ink)] px-3 py-2 text-[10px] font-bold text-white shadow-lg sm:left-5 sm:top-5">{filteredBuildings.length} จุดสำคัญในวิทยาลัย</div><div className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-[10px] font-bold text-[var(--ink)] shadow-sm backdrop-blur"><MapPin size={13} className="text-[var(--coral)]" fill="currentColor" /> แตะหมุดเพื่อดูข้อมูล</div></div></div>
           </div>
 
-          {selectedBuilding && <div className="mt-5 grid gap-5 rounded-[24px] border border-[var(--border)] bg-white p-5 shadow-[0_12px_35px_rgba(16,41,58,0.06)] sm:p-7 md:grid-cols-[1fr_1.3fr] md:items-start"><div><div className="mb-4 flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: selectedBuilding.accent }}><Building2 size={19} /></span><div><div className="flex items-center gap-2"><h3 className="font-display text-xl font-bold tracking-[-0.04em] text-[var(--ink)]">{selectedBuilding.name}</h3><span className="rounded-full bg-[var(--muted)] px-2 py-1 text-[10px] font-bold text-[var(--muted-foreground)]">{selectedBuilding.category}</span></div><p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">ข้อมูลอาคารอัปเดตล่าสุด · {selectedBuilding.floors} ชั้น</p></div></div><p className="text-sm leading-7 text-[var(--muted-foreground)]">{selectedBuilding.description}</p><button type="button" onClick={() => scrollToId("about")} className="mt-5 flex items-center gap-2 text-xs font-extrabold text-[#287c78]">ขอเส้นทางไปอาคารนี้ <ArrowUpRight size={14} /></button></div><FloorDetails building={selectedBuilding} /></div>}
+          {selectedBuilding && <div className="mt-5 grid gap-5 rounded-[24px] border border-[var(--border)] bg-white p-5 shadow-[0_12px_35px_rgba(16,41,58,0.06)] sm:p-7 md:grid-cols-[1fr_1.3fr] md:items-start"><div><div className="mb-4 flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: selectedBuilding.accent }}><Building2 size={19} /></span><div><div className="flex items-center gap-2"><h3 className="font-display text-xl font-bold tracking-[-0.04em] text-[var(--ink)]">{selectedBuilding.name}</h3><span className="rounded-full bg-[var(--muted)] px-2 py-1 text-[10px] font-bold text-[var(--muted-foreground)]">{selectedBuilding.category}</span></div><p className="mt-1 text-xs font-medium text-[var(--muted-foreground)]">ข้อมูลอาคารอัปเดตล่าสุด · {selectedBuilding.floors} ชั้น</p></div></div><p className="text-sm leading-7 text-[var(--muted-foreground)]">{selectedBuilding.description}</p><button type="button" onClick={() => navigateToBuilding(selectedBuilding)} className="mt-5 flex items-center gap-2 rounded-full bg-[var(--ink)] px-4 py-2.5 text-xs font-extrabold text-white transition-transform hover:-translate-y-0.5"><Navigation size={14} /> นำทางไปอาคารนี้ <ArrowUpRight size={14} /></button>{routeStatus && <p className="mt-3 text-[11px] font-bold text-[#287c78]">{routeStatus}</p>}</div><FloorDetails building={selectedBuilding} /></div>}
         </section>
 
         <section id="news" className="scroll-mt-20 border-y border-[var(--border)] bg-[#edf3ef]">
@@ -258,7 +300,8 @@ export default function Home() {
 
         <section id="about" className="mx-auto max-w-[1440px] scroll-mt-20 px-5 py-16 sm:px-8 lg:px-12 lg:py-20"><div className="grid gap-8 rounded-[28px] bg-[var(--ink)] px-6 py-9 text-white sm:px-10 lg:grid-cols-[1.3fr_0.7fr] lg:items-end lg:px-14 lg:py-12"><div><p className="mb-3 text-xs font-extrabold tracking-[0.16em] text-[var(--aqua)]">ABOUT THE CAMPUS</p><h2 className="max-w-[680px] text-3xl font-extrabold leading-tight tracking-[-0.05em] sm:text-4xl">พื้นที่เล็ก ๆ ที่เต็มไปด้วย<br /><span className="text-[#9edbd1]">โอกาสการเรียนรู้</span></h2><p className="mt-4 max-w-[630px] text-sm leading-7 text-white/65">วิทยาลัยเทคนิคสมุทรสงครามมุ่งพัฒนากำลังคนสายอาชีพให้พร้อมสำหรับโลกการทำงาน ด้วยการเรียนรู้จากสถานที่จริง เทคโนโลยีจริง และความร่วมมือจากชุมชน</p></div><div className="flex flex-col gap-3 lg:items-end"><div className="flex items-center gap-2 text-sm font-bold text-white/80"><MapPin size={17} className="text-[var(--coral)]" /> {CAMPUS_OVERVIEW.address}</div><a href="mailto:info@smtc.ac.th" className="flex items-center gap-2 text-sm font-bold text-[var(--aqua)] transition-colors hover:text-white">ติดต่อวิทยาลัย <ArrowUpRight size={15} /></a></div></div></section>
       </main>
-      <footer className="border-t border-[var(--border)] bg-white"><div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-3 px-5 py-6 text-[11px] font-medium text-[var(--muted-foreground)] sm:flex-row sm:px-8 lg:px-12"><span>© 2026 วิทยาลัยเทคนิคสมุทรสงคราม · Campus Guide</span><span>ข้อมูลสาธิตสำหรับโครงงาน frontend และ backend</span></div></footer>
+      <footer className="border-t border-[var(--border)] bg-white"><div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-3 px-5 py-6 text-[11px] font-medium text-[var(--muted-foreground)] sm:flex-row sm:px-8 lg:px-12"><span>© 2026 วิทยาลัยเทคนิคสมุทรสงคราม · PLato Guide</span><span>ข้อมูลสาธิตสำหรับโครงงาน frontend และ backend</span></div></footer>
+      <CampusAIWidget />
     </div>
   );
 }

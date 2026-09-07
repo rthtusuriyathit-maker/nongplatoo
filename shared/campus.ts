@@ -6,6 +6,24 @@ export type Floor = {
   rooms: string[];
 };
 
+export type GalleryImage = {
+  id: string;
+  url: string;
+  caption: string;
+  alt: string;
+};
+
+export type DepartmentProfile = {
+  id: string;
+  floor: number;
+  name: string;
+  code: string;
+  description: string;
+  skills: string[];
+  careers: string[];
+  accent: string;
+};
+
 export type CampusBuilding = {
   id: string;
   name: string;
@@ -19,6 +37,10 @@ export type CampusBuilding = {
   height: number;
   accent: string;
   floorsDetail: Floor[];
+  latitude?: number;
+  longitude?: number;
+  departments?: DepartmentProfile[];
+  gallery?: GalleryImage[];
 };
 
 export type CampusNews = {
@@ -42,6 +64,35 @@ export const CAMPUS_OVERVIEW = {
     { value: "08:00–16:30", label: "เวลาทำการ" },
   ],
 };
+
+export const DEFAULT_GALLERY: GalleryImage[] = [
+  { id: "workshop", url: "/manus-storage/workshop-class_7b9c890d.jpg", caption: "บรรยากาศการเรียนรู้แบบลงมือทำ", alt: "ห้องเรียนเชิงปฏิบัติการ" },
+  { id: "lab", url: "/manus-storage/modern-lab_369cb2fd.jpeg", caption: "ห้องปฏิบัติการพร้อมใช้งาน", alt: "ห้องปฏิบัติการสมัยใหม่" },
+  { id: "training", url: "/manus-storage/training-space_8dd5d5f6.jpg", caption: "พื้นที่ฝึกทักษะสายอาชีพ", alt: "นักเรียนในห้องฝึกทักษะ" },
+];
+
+export const DEFAULT_DEPARTMENTS: DepartmentProfile[] = [
+  {
+    id: "digital-business",
+    floor: 3,
+    name: "เทคโนโลยีธุรกิจดิจิทัล",
+    code: "DBT",
+    description: "เรียนรู้การใช้เทคโนโลยีเพื่อสร้างธุรกิจยุคใหม่ ตั้งแต่การจัดการข้อมูล สื่อดิจิทัล ไปจนถึงการวางแผนธุรกิจออนไลน์",
+    skills: ["การวิเคราะห์ข้อมูล", "การออกแบบสื่อดิจิทัล", "การจัดการธุรกิจออนไลน์"],
+    careers: ["Digital Marketer", "Content Creator", "เจ้าหน้าที่ธุรกิจดิจิทัล"],
+    accent: "#3c8f8d",
+  },
+  {
+    id: "automotive",
+    floor: 1,
+    name: "ช่างยนต์และยานยนต์ไฟฟ้า",
+    code: "AUT",
+    description: "ผสมผสานพื้นฐานเครื่องยนต์ ระบบไฟฟ้ารถยนต์ และเทคโนโลยียานยนต์ไฟฟ้า ผ่านการฝึกกับอุปกรณ์จริง",
+    skills: ["วิเคราะห์ระบบเครื่องยนต์", "บำรุงรักษารถ EV", "อ่านวงจรไฟฟ้ายานยนต์"],
+    careers: ["ช่างเทคนิคยานยนต์", "ช่างซ่อมรถ EV", "ที่ปรึกษาศูนย์บริการ"],
+    accent: "#eb8b67",
+  },
+];
 
 export const CAMPUS_BUILDINGS: CampusBuilding[] = [
   {

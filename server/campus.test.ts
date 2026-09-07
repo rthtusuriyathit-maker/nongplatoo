@@ -36,4 +36,12 @@ describe("campus public API", () => {
       date: expect.any(String),
     });
   });
+
+  it("rejects admin content access for a public visitor", async () => {
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.campus.adminNews()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+  });
 });

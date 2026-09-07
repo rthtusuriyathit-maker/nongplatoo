@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { CAMPUS_BUILDINGS, CAMPUS_NEWS } from "@shared/campus";
+import { CAMPUS_BUILDINGS, CAMPUS_NEWS, DEFAULT_DEPARTMENTS, DEFAULT_GALLERY } from "@shared/campus";
 import { campusBuildings, campusNews, InsertUser, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -61,30 +61,63 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+function withBuildingFallbacks(building: (typeof CAMPUS_BUILDINGS)[number]) {
+  return {
+    ...building,
+    departments: DEFAULT_DEPARTMENTS.filter((department) => department.floor <= building.floors),
+    gallery: DEFAULT_GALLERY,
+    latitude: building.latitude ?? 13.4098 + (building.y - 50) * 0.00035,
+    longitude: building.longitude ?? 99.9991 + (building.x - 50) * 0.00045,
+  };
+}
+
 export async function getCampusBuildings() {
   const db = await getDb();
-  if (!db) return CAMPUS_BUILDINGS;
+  if (!db) return CAMPUS_BUILDINGS.map(withBuildingFallbacks);
 
   try {
     const rows = await db.select().from(campusBuildings);
-    if (!rows.length) return CAMPUS_BUILDINGS;
+    if (!rows.length) return CAMPUS_BUILDINGS.map(withBuildingFallbacks);
 
-    return CAMPUS_BUILDINGS.map((fallback) => {
-      const row = rows.find((item) => item.id === fallback.id);
-      if (!row) return fallback;
+    return rows.map((row, index) => {
+      const fallback = CAMPUS_BUILDINGS.find((item) => item.id === row.id);
+      if (fallback) {
+        return {
+          ...fallback,
+          name: row.name,
+          shortName: row.shortName,
+          category: row.category,
+          description: row.description,
+          floors: row.floors,
+          floorsDetail: (row.floorDetails as typeof fallback.floorsDetail) ?? fallback.floorsDetail,
+          latitude: Number(row.latitude),
+          longitude: Number(row.longitude),
+          departments: (row.departments as typeof DEFAULT_DEPARTMENTS) ?? DEFAULT_DEPARTMENTS.filter((department) => department.floor <= row.floors),
+          gallery: (row.gallery as typeof DEFAULT_GALLERY) ?? DEFAULT_GALLERY,
+        };
+      }
       return {
-        ...fallback,
+        id: row.id,
         name: row.name,
         shortName: row.shortName,
         category: row.category,
         description: row.description,
         floors: row.floors,
-        floorsDetail: (row.floorDetails as typeof fallback.floorsDetail) ?? fallback.floorsDetail,
+        x: 18 + (index % 4) * 20,
+        y: 22 + Math.floor(index / 4) * 25,
+        width: 18,
+        height: 18,
+        accent: "#3c8f8d",
+        floorsDetail: row.floorDetails as typeof CAMPUS_BUILDINGS[number]["floorsDetail"],
+        latitude: Number(row.latitude),
+        longitude: Number(row.longitude),
+        departments: row.departments as typeof DEFAULT_DEPARTMENTS,
+        gallery: row.gallery as typeof DEFAULT_GALLERY,
       };
     });
   } catch (error) {
     console.warn("[Database] Could not load campus buildings, using demo data:", error);
-    return CAMPUS_BUILDINGS;
+    return CAMPUS_BUILDINGS.map(withBuildingFallbacks);
   }
 }
 
@@ -108,4 +141,87 @@ export async function getCampusNews() {
     console.warn("[Database] Could not load campus news, using demo data:", error);
     return CAMPUS_NEWS;
   }
+}
+
+export type BuildingWriteInput = {
+  id: string;
+  name: string;
+  shortName: string;
+  category: "วิชาการ" | "ปฏิบัติการ" | "บริการ" | "กิจกรรม";
+  description: string;
+  floors: number;
+  latitude: number;
+  longitude: number;
+  floorDetails: unknown;
+  departments: unknown;
+  gallery: unknown;
+};
+
+export async function saveCampusBuilding(input: BuildingWriteInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const values = {
+    id: input.id,
+    name: input.name,
+    shortName: input.shortName,
+    category: input.category,
+    description: input.description,
+    floors: input.floors,
+    latitude: String(input.latitude),
+    longitude: String(input.longitude),
+    floorDetails: input.floorDetails,
+    departments: input.departments,
+    gallery: input.gallery,
+  };
+  await db.insert(campusBuildings).values(values).onDuplicateKeyUpdate({ set: values });
+  return values;
+}
+
+export type ImportedBuildingInput = Pick<BuildingWriteInput, "id" | "name" | "shortName" | "description" | "category" | "latitude" | "longitude">;
+
+export async function importCampusBuildings(items: ImportedBuildingInput[]) {
+  const results = [];
+  for (const item of items) {
+    results.push(await saveCampusBuilding({
+      ...item,
+      floors: 1,
+      floorDetails: [{ level: 1, label: "ชั้น 1 — รอข้อมูลจากแบ็กเอนด์", rooms: [] }],
+      departments: [],
+      gallery: [],
+    }));
+  }
+  return { imported: results.length };
+}
+
+export async function removeCampusBuilding(id: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(campusBuildings).where(eq(campusBuildings.id, id));
+  return { success: true as const };
+}
+
+export type NewsWriteInput = {
+  id: string;
+  tag: string;
+  title: string;
+  excerpt: string;
+  dateLabel: string;
+  timeLabel: string;
+  accent: string;
+  published: number;
+};
+
+export async function saveCampusNews(input: NewsWriteInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const values = { ...input };
+  await db.insert(campusNews).values(values).onDuplicateKeyUpdate({ set: values });
+  return values;
+}
+
+export async function removeCampusNews(id: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(campusNews).where(eq(campusNews.id, id));
+  return { success: true as const };
 }

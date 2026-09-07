@@ -22,6 +22,8 @@ export const campusBuildings = mysqlTable("campus_buildings", {
   latitude: varchar("latitude", { length: 32 }).notNull(),
   longitude: varchar("longitude", { length: 32 }).notNull(),
   floorDetails: json("floorDetails").notNull(),
+  departments: json("departments").notNull(),
+  gallery: json("gallery").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
