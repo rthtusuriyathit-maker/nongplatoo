@@ -12,6 +12,7 @@ import {
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
+import { invokeLLM } from "./_core/llm";
 
 const floorSchema = z.object({
   level: z.number().int().min(1),
@@ -86,6 +87,19 @@ export const appRouter = router({
   campus: router({
     buildings: publicProcedure.query(() => getCampusBuildings()),
     news: publicProcedure.query(() => getCampusNews()),
+    askAI: publicProcedure.input(z.object({ question: z.string().min(1).max(500), history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(2000) })).max(8).default([]) })).mutation(async ({ input }) => {
+      const buildings = await getCampusBuildings();
+      const context = buildings.slice(0, 30).map((building) => `${building.name} (${building.category}) พิกัด ${building.latitude},${building.longitude} จำนวน ${building.floors} ชั้น`).join("\n");
+      const response = await invokeLLM({ messages: [
+        { role: "system", content: `คุณคือ Nong Platoo Ontour AI ผู้ช่วยประชาสัมพันธ์วิทยาลัยเทคนิคสมุทรสงคราม ตอบภาษาไทยสุภาพ กระชับ เข้าใจง่ายสำหรับนักเรียน ผู้ปกครอง และผู้มาติดต่อ ห้ามแต่งข้อมูลที่ไม่มีในบริบท หากไม่ทราบให้บอกว่ารอข้อมูลจากวิทยาลัย และแนะนำให้ติดต่อเจ้าหน้าที่ ใช้บริบทอาคารดังนี้:\n${context}` },
+        ...input.history,
+        { role: "user", content: input.question },
+      ] });
+      const content = response.choices?.[0]?.message?.content;
+      if (typeof content === "string") return { answer: content };
+      if (Array.isArray(content)) return { answer: content.map((part) => typeof part === "string" ? part : part.type === "text" ? part.text : "").join("") };
+      return { answer: "ขออภัยครับ ตอนนี้ยังไม่สามารถสร้างคำตอบได้ กรุณาลองใหม่อีกครั้ง" };
+    }),
     adminBuildings: adminProcedure.query(() => getCampusBuildings()),
     adminNews: adminProcedure.query(() => getCampusNews()),
     importBuildings: adminProcedure.input(z.object({ items: z.array(importedBuildingInput).min(1).max(200) })).mutation(({ input }) => importCampusBuildings(input.items)),

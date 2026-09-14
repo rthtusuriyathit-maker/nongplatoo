@@ -1,6 +1,6 @@
-# PLato Guide AI Chatbot
+# Nong Platoo Ontour AI Chatbot
 
-หน้า public มี floating widget `PLato Guide AI` อยู่มุมขวาล่างแล้ว โดยใช้คอมโพเนนต์ `client/src/components/CampusAIWidget.tsx` และคอมโพเนนต์แชตที่มีอยู่ใน `client/src/components/AIChatBox.tsx`
+หน้า public มี floating widget `Nong Platoo Ontour AI` อยู่มุมขวาล่างแล้ว โดยใช้คอมโพเนนต์ `client/src/components/CampusAIWidget.tsx` และคอมโพเนนต์แชตที่มีอยู่ใน `client/src/components/AIChatBox.tsx`
 
 ## ตอนนี้ใช้งานอย่างไร
 

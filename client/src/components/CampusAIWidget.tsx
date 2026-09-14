@@ -1,62 +1,61 @@
-import { AIChatBox, type Message } from "@/components/AIChatBox";
-import { extractCampusAIReply } from "@shared/ai";
-import { MessageCircle, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { Building2, Camera, ChevronRight, HelpCircle, ImagePlus, Loader2, MapPin, MessageCircle, Mic, MicOff, Send, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 
-const AI_ENDPOINT = import.meta.env.VITE_CAMPUS_AI_URL as string | undefined;
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type SpeechRecognitionLike = { lang: string; continuous: boolean; interimResults: boolean; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onerror: (() => void) | null; onend: (() => void) | null; start: () => void; stop: () => void };
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+declare global { interface Window { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor; } }
 
-const welcomeMessage: Message = {
-  role: "assistant",
-  content: "สวัสดีครับ ผม PLato Guide AI\n\nตอนนี้ผมช่วยแนะนำอาคาร สาขาวิชา และข้อมูลการเดินทางภายในวิทยาลัยได้ เมื่อเชื่อมต่อ AI endpoint จริงแล้วจะตอบคำถามได้ละเอียดมากขึ้นครับ",
-};
-
-const suggestedPrompts = [
-  "อาคารช่างยนต์อยู่ตรงไหน?",
-  "มีสาขาวิชาอะไรบ้าง?",
-  "ช่วยแนะนำวิธีเดินทางไปห้องสมุด",
+const quickQuestions = [
+  { icon: MapPin, label: "อาคารกิจกรรมอยู่ตรงไหน?", question: "อาคารกิจกรรมอยู่ตรงไหน และเดินทางไปอย่างไร?" },
+  { icon: Building2, label: "มีสาขาวิชาอะไรบ้าง?", question: "วิทยาลัยมีสาขาวิชาอะไรบ้าง ช่วยสรุปให้หน่อย" },
+  { icon: HelpCircle, label: "ติดต่อวิทยาลัยอย่างไร?", question: "ถ้าต้องการติดต่อวิทยาลัย ควรติดต่ออย่างไร?" },
 ];
+
+function speakThai(text: string, onStart?: () => void, onEnd?: () => void) {
+  if (!("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text.replace(/[*#`]/g, ""));
+  utterance.lang = "th-TH"; utterance.rate = 0.95;
+  utterance.onstart = onStart ?? null; utterance.onend = onEnd ?? null; utterance.onerror = onEnd ?? null;
+  window.speechSynthesis.speak(utterance);
+}
 
 export function CampusAIWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([welcomeMessage]);
-  const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
+  const [textInput, setTextInput] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: "สวัสดีครับ ผม Nong Platoo Ontour AI\n\nแตะปุ่มคำถาม พิมพ์ พูด หรือส่งภาพมาได้เลยครับ" }]);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const cameraRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const speakAnswer = (text: string) => { if (soundEnabled) speakThai(text, () => setSpeaking(true), () => setSpeaking(false)); };
+  const askAI = trpc.campus.askAI.useMutation({ onSuccess: ({ answer }) => { setMessages((current) => [...current, { role: "assistant", content: answer }]); speakAnswer(answer); }, onError: () => { const answer = "ขออภัยครับ ระบบกำลังเชื่อมต่อผู้ช่วยอัจฉริยะ กรุณาลองอีกครั้ง"; setMessages((current) => [...current, { role: "assistant", content: answer }]); speakAnswer(answer); toast.error("ยังเชื่อมต่อ AI ไม่สำเร็จ"); } });
 
-  const onSendMessage = async (content: string) => {
-    const nextMessages: Message[] = [...messages, { role: "user", content }];
-    setMessages(nextMessages);
-    setLoading(true);
-
-    try {
-      if (!AI_ENDPOINT) {
-        await new Promise((resolve) => window.setTimeout(resolve, 550));
-        setMessages((current) => [...current, {
-          role: "assistant",
-          content: "โหมดเตรียมเชื่อมต่อพร้อมใช้งานแล้วครับ\n\nเมื่อมี AI URL แล้ว สามารถตั้งค่า `VITE_CAMPUS_AI_URL` เพื่อให้ผมตอบคำถามจริงเกี่ยวกับวิทยาลัยได้ทันที",
-        }]);
-        return;
-      }
-
-      const response = await fetch(AI_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: nextMessages }),
-      });
-      if (!response.ok) throw new Error(`AI endpoint returned ${response.status}`);
-      const contentType = response.headers.get("content-type") ?? "";
-      const payload = contentType.includes("application/json") ? await response.json() : await response.text();
-      setMessages((current) => [...current, { role: "assistant", content: extractCampusAIReply(payload) }]);
-    } catch (error) {
-      console.error("[PLato AI] request failed", error);
-      toast.error("เชื่อมต่อ AI ไม่สำเร็จ กรุณาตรวจสอบ URL อีกครั้ง");
-      setMessages((current) => [...current, { role: "assistant", content: "ขออภัยครับ ตอนนี้ยังเชื่อมต่อผู้ช่วย AI ไม่ได้ ลองใหม่อีกครั้งภายหลังนะครับ" }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => () => { recognitionRef.current?.stop(); window.speechSynthesis?.cancel(); cameraStreamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
+  useEffect(() => { if (!soundEnabled) { window.speechSynthesis?.cancel(); setSpeaking(false); } }, [soundEnabled]);
+  const ask = (question: string) => { if (askAI.isPending) return; setMessages((current) => [...current, { role: "user", content: question }]); askAI.mutate({ question, history: messages.slice(-6) }); };
+  const submitText = (event: FormEvent) => { event.preventDefault(); const question = textInput.trim(); if (!question) return; setTextInput(""); ask(question); };
+  const handleImage = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file) return; setImagePreview(URL.createObjectURL(file)); setMessages((current) => [...current, { role: "user", content: `📷 ส่งภาพให้ Nong Platoo แล้ว: ${file.name}` }]); toast.success("รับภาพแล้ว · จุดเชื่อมต่อ Vision AI พร้อมให้ Backend เชื่อมต่อ"); };
+  const toggleCamera = async () => { if (cameraActive) { cameraStreamRef.current?.getTracks().forEach((track) => track.stop()); cameraStreamRef.current = null; setCameraActive(false); return; } if (!navigator.mediaDevices?.getUserMedia) { toast.error("อุปกรณ์นี้ยังไม่รองรับกล้อง"); return; } try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false }); cameraStreamRef.current = stream; if (cameraRef.current) cameraRef.current.srcObject = stream; setCameraActive(true); toast.success("เปิดกล้องแล้ว · เตรียมเชื่อมตรวจจับคนเดินผ่าน"); } catch { toast.error("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง"); } };
+  const toggleVoice = () => { if (listening) { recognitionRef.current?.stop(); setListening(false); return; } const Constructor = window.SpeechRecognition ?? window.webkitSpeechRecognition; if (!Constructor) { toast.error("อุปกรณ์นี้ยังไม่รองรับการพูด กรุณาใช้ข้อความ"); return; } const recognition = new Constructor(); recognition.lang = "th-TH"; recognition.continuous = false; recognition.interimResults = false; recognition.onresult = (event) => { const transcript = event.results[0]?.[0]?.transcript?.trim(); if (transcript) ask(transcript); }; recognition.onerror = () => { setListening(false); toast.error("ไม่ได้ยินเสียง กรุณาลองอีกครั้ง"); }; recognition.onend = () => setListening(false); recognitionRef.current = recognition; setListening(true); recognition.start(); };
 
   return <>
-    {open && <div className="fixed bottom-24 right-4 z-[60] w-[min(410px,calc(100vw-2rem))] overflow-hidden rounded-[24px] border border-[var(--border)] bg-white shadow-[0_22px_70px_rgba(16,41,58,0.25)] sm:right-6"><div className="flex items-center justify-between bg-[var(--ink)] px-4 py-3 text-white"><div className="flex items-center gap-2.5"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--aqua)] text-[var(--ink)]"><Sparkles size={15} /></span><div><p className="text-sm font-extrabold">PLato Guide AI</p><p className="text-[10px] font-medium text-white/60">ถามเรื่องอาคารและวิทยาลัยฯ ได้เลย</p></div></div><button type="button" onClick={() => setOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white" aria-label="ปิดแชต"><X size={16} /></button></div><AIChatBox messages={messages} onSendMessage={onSendMessage} isLoading={loading} height="430px" placeholder="พิมพ์คำถามเกี่ยวกับวิทยาลัย..." emptyStateMessage="เริ่มถาม PLato Guide AI" suggestedPrompts={suggestedPrompts} className="rounded-none border-0 shadow-none" /></div>}
-    <button type="button" onClick={() => setOpen((value) => !value)} className="fixed bottom-5 right-4 z-[60] flex h-14 items-center gap-2 rounded-full bg-[var(--ink)] px-4 text-white shadow-[0_14px_35px_rgba(16,41,58,0.3)] transition-all hover:-translate-y-1 sm:right-6" aria-label={open ? "ปิด PLato Guide AI" : "เปิด PLato Guide AI"}><span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[var(--aqua)] text-[var(--ink)]"><MessageCircle size={17} />{!open && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--ink)] bg-[#78d3a2]" />}</span><span className="hidden text-xs font-extrabold sm:inline">{open ? "ปิดแชต" : "ถาม PLato AI"}</span></button>
+    {open && <div className="fixed bottom-24 right-3 z-[60] w-[min(440px,calc(100vw-1.5rem))] overflow-hidden rounded-[28px] border border-[var(--border)] bg-[var(--card)] shadow-[0_24px_80px_rgba(16,41,58,0.28)] sm:right-6">
+      <div className="flex items-center justify-between bg-[var(--deep)] px-5 py-4 text-white"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--aqua)] text-[var(--ink)]"><Sparkles size={18} /></span><div><p className="text-sm font-black">Nong Platoo Ontour AI</p><p className="text-[10px] text-white/65">ผู้ช่วยประชาสัมพันธ์แบบโต้ตอบ</p></div></div><button type="button" onClick={() => setOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10" aria-label="ปิดผู้ช่วย"><X size={17} /></button></div>
+      <div className="max-h-[38vh] space-y-3 overflow-y-auto bg-[var(--background)] p-4">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={message.role === "user" ? "ml-8 rounded-2xl rounded-br-md bg-[var(--primary)] px-4 py-3 text-sm leading-6 text-white" : "mr-4 rounded-2xl rounded-bl-md bg-[var(--card)] px-4 py-3 text-sm leading-6 text-[var(--card-foreground)] shadow-sm ring-1 ring-[var(--border)]"}><Streamdown>{message.content}</Streamdown></div>)}{askAI.isPending && <div className="flex items-center gap-2 text-xs font-bold text-[var(--muted-foreground)]"><Loader2 className="animate-spin" size={15} /> กำลังค้นหาคำตอบ...</div>}</div>
+      <div className="border-t border-[var(--border)] bg-[var(--card)] p-4"><div className="mb-3 flex items-center justify-between"><p className="text-[10px] font-black tracking-[0.12em] text-[var(--muted-foreground)]">เลือกวิธีสื่อสารกับ AI</p><button type="button" onClick={() => setSoundEnabled((enabled) => !enabled)} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-black ${soundEnabled ? "bg-[#e2f5fb] text-[#075985]" : "bg-[#edf1f4] text-[var(--muted-foreground)]"}`}>{soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}{soundEnabled ? "เสียงเปิด" : "เสียงปิด"}</button></div>{speaking && <div className="speaking-indicator mb-3 flex items-center justify-center gap-1.5 rounded-2xl bg-[var(--sand)] py-2 text-[10px] font-black text-[#8a6412]"><span className="voice-bar" /><span className="voice-bar" /><span className="voice-bar" /> Nong Platoo AI กำลังพูด <span className="voice-bar" /><span className="voice-bar" /><span className="voice-bar" /></div>}
+        <form onSubmit={submitText} className="mb-3 flex gap-2"><input value={textInput} onChange={(event) => setTextInput(event.target.value)} placeholder="พิมพ์คำถามที่นี่..." className="min-w-0 flex-1 rounded-2xl border border-[var(--border)] bg-[var(--background)] px-4 py-3 text-sm text-[var(--foreground)] outline-none focus:ring-2 focus:ring-[var(--ring)]" aria-label="พิมพ์คำถาม" /><button type="submit" disabled={!textInput.trim() || askAI.isPending} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-white disabled:opacity-40" aria-label="ส่งข้อความ"><Send size={17} /></button></form>
+        <div className="mb-3 grid grid-cols-2 gap-2"><label className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--background)] text-xs font-black text-[var(--foreground)]"><ImagePlus size={16} /> เลือก/ถ่ายภาพ<input type="file" accept="image/*" capture="environment" onChange={handleImage} className="sr-only" /></label><button type="button" onClick={toggleCamera} className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl text-xs font-black ${cameraActive ? "bg-[#e8b84d] text-[#563c08]" : "border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)]"}`}><Camera size={16} />{cameraActive ? "ปิดกล้อง" : "เตรียมกล้องทักทาย"}</button></div>
+        {cameraActive && <div className="mb-3 overflow-hidden rounded-2xl bg-[#031b30] p-2"><video ref={cameraRef} autoPlay muted playsInline className="aspect-video w-full rounded-xl object-cover" /><p className="mt-1 text-center text-[9px] font-bold text-white/70">Frontend พร้อมรับ event คนเดินผ่าน · รอเชื่อม Vision AI และระบบทักทาย</p></div>}{imagePreview && <div className="mb-3 flex items-center gap-3 rounded-2xl bg-[var(--background)] p-2"><img src={imagePreview} alt="ภาพที่เลือกสำหรับ AI" className="h-14 w-14 rounded-xl object-cover" /><span className="text-[10px] font-bold text-[var(--muted-foreground)]">ภาพพร้อมส่งให้ Vision AI</span><button type="button" onClick={() => { URL.revokeObjectURL(imagePreview); setImagePreview(null); }} className="ml-auto text-xs font-black text-red-500">ลบ</button></div>}
+        <div className="grid gap-2">{quickQuestions.map(({ icon: Icon, label, question }) => <button key={question} type="button" onClick={() => ask(question)} disabled={askAI.isPending} className="flex min-h-12 items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] px-3 text-left text-xs font-black text-[var(--foreground)] transition-colors hover:border-[var(--aqua)] disabled:opacity-50"><Icon size={17} className="shrink-0 text-[var(--aqua)]" /><span className="flex-1">{label}</span><ChevronRight size={15} className="text-[var(--muted-foreground)]" /></button>)}</div><button type="button" onClick={toggleVoice} disabled={askAI.isPending} className={`mt-3 flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl text-sm font-black transition-all ${listening ? "bg-[#e97967] text-white" : "bg-[var(--secondary)] text-[var(--secondary-foreground)]"}`}><span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/75">{listening ? <MicOff size={18} /> : <Mic size={18} />}</span>{listening ? "กำลังฟัง... พูดคำถามได้เลย" : "แตะเพื่อพูดถาม Nong Platoo AI"}</button><p className="mt-2 text-center text-[10px] text-[var(--muted-foreground)]">คำตอบจะอ่านออกเสียงอัตโนมัติ · <button type="button" onClick={() => messages.at(-1)?.role === "assistant" && speakAnswer(messages.at(-1)!.content)} className="inline-flex items-center gap-1 font-bold text-[var(--secondary-foreground)]"><Volume2 size={11} /> ฟังซ้ำ</button></p></div></div>}
+    <button type="button" onClick={() => setOpen((value) => !value)} className="fixed bottom-5 right-3 z-[60] flex h-14 items-center gap-2 rounded-full bg-[var(--deep)] px-4 text-white shadow-[0_14px_35px_rgba(16,41,58,0.3)] transition-all hover:-translate-y-1 sm:right-6" aria-label={open ? "ปิด Nong Platoo AI" : "เปิด Nong Platoo AI"}><span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[var(--aqua)] text-[var(--ink)]"><MessageCircle size={17} /></span><span className="hidden text-xs font-extrabold sm:inline">{open ? "ปิดผู้ช่วย" : "ถาม Nong Platoo AI"}</span></button>
   </>;
 }

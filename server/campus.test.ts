@@ -44,4 +44,12 @@ describe("campus public API", () => {
       code: "FORBIDDEN",
     });
   });
+
+  it("validates AI questions before calling the model", async () => {
+    const caller = appRouter.createCaller(createPublicContext());
+
+    await expect(caller.campus.askAI({ question: "" })).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+  });
 });

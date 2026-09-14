@@ -21,6 +21,7 @@ export type DepartmentProfile = {
   description: string;
   skills: string[];
   careers: string[];
+  activities?: string[];
   accent: string;
 };
 
@@ -80,6 +81,7 @@ export const DEFAULT_DEPARTMENTS: DepartmentProfile[] = [
     description: "เรียนรู้การใช้เทคโนโลยีเพื่อสร้างธุรกิจยุคใหม่ ตั้งแต่การจัดการข้อมูล สื่อดิจิทัล ไปจนถึงการวางแผนธุรกิจออนไลน์",
     skills: ["การวิเคราะห์ข้อมูล", "การออกแบบสื่อดิจิทัล", "การจัดการธุรกิจออนไลน์"],
     careers: ["Digital Marketer", "Content Creator", "เจ้าหน้าที่ธุรกิจดิจิทัล"],
+    activities: ["เวิร์กช็อปออกแบบสื่อ", "ฝึกทำธุรกิจจำลอง", "กิจกรรมสร้างแบรนด์ออนไลน์"],
     accent: "#3c8f8d",
   },
   {
@@ -90,6 +92,7 @@ export const DEFAULT_DEPARTMENTS: DepartmentProfile[] = [
     description: "ผสมผสานพื้นฐานเครื่องยนต์ ระบบไฟฟ้ารถยนต์ และเทคโนโลยียานยนต์ไฟฟ้า ผ่านการฝึกกับอุปกรณ์จริง",
     skills: ["วิเคราะห์ระบบเครื่องยนต์", "บำรุงรักษารถ EV", "อ่านวงจรไฟฟ้ายานยนต์"],
     careers: ["ช่างเทคนิคยานยนต์", "ช่างซ่อมรถ EV", "ที่ปรึกษาศูนย์บริการ"],
+    activities: ["ตรวจเช็กรถยนต์ไฟฟ้า", "แข่งขันทักษะงานเครื่องยนต์", "เปิดโรงฝึกให้เยี่ยมชม"],
     accent: "#eb8b67",
   },
 ];

@@ -40,7 +40,7 @@ export function DashboardWithCollapsibleSidebar({ activeSection, onSectionChange
       {open && <p className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">ทางลัด</p>}
       <Link href="/" className="flex h-11 items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900">
         <span className="grid h-full w-12 shrink-0 place-content-center"><ExternalLink className="h-[17px] w-[17px]" /></span>
-        {open && <span className="text-xs font-extrabold">ดูหน้า PLato Guide</span>}
+        {open && <span className="text-xs font-extrabold">ดูหน้า Nong Platoo Ontour</span>}
       </Link>
       <button type="button" onClick={() => onSectionChange("dashboard")} className="flex h-11 w-full items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900">
         <span className="grid h-full w-12 shrink-0 place-content-center"><Settings2 className="h-[17px] w-[17px]" /></span>

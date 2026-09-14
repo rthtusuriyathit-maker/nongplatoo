@@ -186,7 +186,7 @@ export default function Home() {
           <button type="button" onClick={() => scrollToId("top")} className="flex items-center gap-3 text-left">
             <LogoMark />
             <div>
-              <p className="font-display text-[15px] font-bold leading-tight text-[var(--ink)]">PLato Guide</p>
+              <p className="font-display text-[15px] font-bold leading-tight text-[var(--ink)]">Nong Platoo Ontour</p>
               <p className="mt-0.5 text-[11px] font-medium text-[var(--muted-foreground)]">วิทยาลัยเทคนิคสมุทรสงคราม</p>
             </div>
           </button>
@@ -300,7 +300,7 @@ export default function Home() {
 
         <section id="about" className="mx-auto max-w-[1440px] scroll-mt-20 px-5 py-16 sm:px-8 lg:px-12 lg:py-20"><div className="grid gap-8 rounded-[28px] bg-[var(--ink)] px-6 py-9 text-white sm:px-10 lg:grid-cols-[1.3fr_0.7fr] lg:items-end lg:px-14 lg:py-12"><div><p className="mb-3 text-xs font-extrabold tracking-[0.16em] text-[var(--aqua)]">ABOUT THE CAMPUS</p><h2 className="max-w-[680px] text-3xl font-extrabold leading-tight tracking-[-0.05em] sm:text-4xl">พื้นที่เล็ก ๆ ที่เต็มไปด้วย<br /><span className="text-[#9edbd1]">โอกาสการเรียนรู้</span></h2><p className="mt-4 max-w-[630px] text-sm leading-7 text-white/65">วิทยาลัยเทคนิคสมุทรสงครามมุ่งพัฒนากำลังคนสายอาชีพให้พร้อมสำหรับโลกการทำงาน ด้วยการเรียนรู้จากสถานที่จริง เทคโนโลยีจริง และความร่วมมือจากชุมชน</p></div><div className="flex flex-col gap-3 lg:items-end"><div className="flex items-center gap-2 text-sm font-bold text-white/80"><MapPin size={17} className="text-[var(--coral)]" /> {CAMPUS_OVERVIEW.address}</div><a href="mailto:info@smtc.ac.th" className="flex items-center gap-2 text-sm font-bold text-[var(--aqua)] transition-colors hover:text-white">ติดต่อวิทยาลัย <ArrowUpRight size={15} /></a></div></div></section>
       </main>
-      <footer className="border-t border-[var(--border)] bg-white"><div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-3 px-5 py-6 text-[11px] font-medium text-[var(--muted-foreground)] sm:flex-row sm:px-8 lg:px-12"><span>© 2026 วิทยาลัยเทคนิคสมุทรสงคราม · PLato Guide</span><span>ข้อมูลสาธิตสำหรับโครงงาน frontend และ backend</span></div></footer>
+      <footer className="border-t border-[var(--border)] bg-white"><div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-3 px-5 py-6 text-[11px] font-medium text-[var(--muted-foreground)] sm:flex-row sm:px-8 lg:px-12"><span>© 2026 วิทยาลัยเทคนิคสมุทรสงคราม · Nong Platoo Ontour</span><span>ข้อมูลสาธิตสำหรับโครงงาน frontend และ backend</span></div></footer>
       <CampusAIWidget />
     </div>
   );

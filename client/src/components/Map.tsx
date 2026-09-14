@@ -142,7 +142,7 @@ export function MapView({
       return;
     }
     if (!loaded || !window.google?.maps) {
-      console.warn("Google Maps is unavailable. The PLato Guide fallback map remains visible.");
+      console.warn("Google Maps is unavailable. The Nong Platoo Ontour fallback map remains visible.");
       return;
     }
     map.current = new window.google.maps.Map(mapContainer.current, {
